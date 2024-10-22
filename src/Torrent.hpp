@@ -1,9 +1,9 @@
 #ifndef TORRENT_HPP
 #define TORRENT_HPP
+
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
@@ -31,18 +31,20 @@ void ensureResumeDirectory() {
 }
 
 class Torrent {
-	public:
+    public:
     Torrent(std::shared_ptr<libtorrent::session> session, const std::string& input);
-    void download();
+    ~Torrent();
     float getProgress() const { return progress; }
     int getPeers() const { return peers; }
     float getSpeed() const { return speed; }
     bool isCompleted() const { return completed; }
     std::string getErrorMessage() const { return errorMessage; }
-    void saveResumeData();
     std::tuple<float, int, float> getTorrentStatus();
+    void handleAlerts();
+    void stopDownload();
 
-	private:
+    private:
+    std::mutex statusMutex;
     std::shared_ptr<libtorrent::session> session;
     libtorrent::torrent_handle handle;
     float progress = 0.0f;
@@ -50,19 +52,31 @@ class Torrent {
     float speed = 0.0f;
     bool completed = false;
     std::string errorMessage;
+    std::thread downloadThread;
+    bool stopFlag = false;
     void addTorrent(const std::string& input);
-    void handleAlerts();
-    std::string determineSavePath(const std::string& torrentFile);
+    void download();
+    void saveResumeData();
     void loadResumeData(const std::string& torrentFile);
+    std::string determineSavePath(const std::string& torrentFile);
 };
 
-Torrent::Torrent(std::shared_ptr<libtorrent::session> session, const std::string& input) : session(std::move(session)) {
+Torrent::Torrent(std::shared_ptr<libtorrent::session> session, const std::string& input)
+    : session(std::move(session)) {
     try {
         ensureResumeDirectory();
         loadResumeData(input);
         addTorrent(input);
+        downloadThread = std::thread(&Torrent::download, this);
     } catch (const std::exception& e) {
         errorMessage = e.what();
+    }
+}
+
+Torrent::~Torrent() {
+    stopFlag = true;
+    if (downloadThread.joinable()) {
+        downloadThread.join();
     }
 }
 
@@ -86,11 +100,16 @@ void Torrent::loadResumeData(const std::string& torrentFile) {
     std::string resumePath = RESUME_DIR + std::filesystem::path(torrentFile).filename().string() + ".resume";
     if (std::filesystem::exists(resumePath)) {
         std::ifstream resumeFile(resumePath, std::ios::binary);
+        if (!resumeFile) {
+            std::cerr << "Failed to open resume file: " << resumePath << std::endl;
+            return;
+        }
         std::vector<char> buffer(std::istreambuf_iterator<char>(resumeFile), {});
         libtorrent::error_code ec;
         auto optionalParams = libtorrent::read_resume_data(buffer, ec);
         if (ec) {
             std::cerr << "Failed to load resume data: " << ec.message() << std::endl;
+            return;
         } else {
             handle = session->add_torrent(std::move(optionalParams));
         }
@@ -116,15 +135,11 @@ std::string Torrent::determineSavePath(const std::string& torrentFile) {
     return path.has_parent_path() ? path.parent_path().string() : std::filesystem::current_path().string();
 }
 
-std::tuple<float, int, float> Torrent::getTorrentStatus() {
-    auto status = handle.status();
-    return {status.progress * 100, status.num_peers, static_cast<float>(status.download_rate) / 1000.0f};
-}
-
 void Torrent::download() {
-    while (!completed) {
+    while (!completed && !stopFlag) {
         auto [currentProgress, currentPeers, currentSpeed] = getTorrentStatus();
         {
+            std::lock_guard<std::mutex> lock(statusMutex);
             progress = currentProgress;
             peers = currentPeers;
             speed = currentSpeed;
@@ -134,8 +149,7 @@ void Torrent::download() {
             saveResumeData();
             break;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        handleAlerts();
+        std::this_thread::sleep_for(std::chrono::seconds(2));
     }
 }
 
@@ -143,63 +157,15 @@ void Torrent::saveResumeData() {
     handle.save_resume_data();
 }
 
-class ThreadPool {
-	public:
-    ThreadPool(size_t numThreads);
-    ~ThreadPool();
-    void enqueueTask(std::function<void()> task);
-
-	private:
-    std::vector<std::thread> workers;
-    std::queue<std::function<void()>> tasks;
-    std::mutex queueMutex;
-    std::condition_variable condition;
-    bool stop = false;
-    void workerThread();
-};
-
-ThreadPool::ThreadPool(size_t numThreads) {
-    for (size_t i = 0; i < numThreads; ++i) {
-        workers.emplace_back([this] { workerThread(); });
-    }
+std::tuple<float, int, float> Torrent::getTorrentStatus() {
+    std::lock_guard<std::mutex> lock(statusMutex);
+    auto status = handle.status();
+    return {status.progress * 100, status.num_peers, static_cast<float>(status.download_rate) / 1000.0f};
 }
 
-ThreadPool::~ThreadPool() {
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        stop = true;
-    }
-    condition.notify_all();
-    for (std::thread& worker : workers) {
-        if (worker.joinable()) worker.join();
-    }
-}
-
-void ThreadPool::enqueueTask(std::function<void()> task) {
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        tasks.push(std::move(task));
-    }
-    condition.notify_one();
-}
-
-void ThreadPool::workerThread() {
-    while (true) {
-        std::function<void()> task;
-        {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            condition.wait(lock, [this] { return stop || !tasks.empty(); });
-            if (stop && tasks.empty()) return;
-
-            task = std::move(tasks.front());
-            tasks.pop();
-        }
-        try {
-            task();
-        } catch (const std::exception& e) {
-            std::cerr << "Task error: " << e.what() << "\n";
-        }
-    }
+void Torrent::stopDownload() {
+    handle.pause();
+    saveResumeData();
 }
 
 void configureSession(std::shared_ptr<libtorrent::session>& session) {
@@ -207,5 +173,4 @@ void configureSession(std::shared_ptr<libtorrent::session>& session) {
     settings.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::status_notification | libtorrent::alert::error_notification);
     session->apply_settings(settings);
 }
-
 #endif
