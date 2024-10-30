@@ -1,122 +1,331 @@
 #include <iostream>
+#include <ncurses.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <vector>
 #include <string>
+#include <limits.h>
+#include <algorithm>
+#include <cstring>
+#include <errno.h>
+#include "TextEditor.hpp"
+#include "FileSearcher.hpp"
+#include "Torrent.hpp"
 
-struct Node {
+void displayDownloadStatus(const std::string& torrentName, float progress, int peers, float speed, bool completed) {
+    clear();
+    int height, width;
+    getmaxyx(stdscr, height, width);
+    mvprintw(height / 4, (width - 11) / 2, "DOWNLOADING");
+    mvprintw(height / 4 + 1, (width - 38) / 2, "When you leave, download will be paused");
+    mvprintw((height / 4) + 4, (width - (torrentName.size()) + 9) / 2, "Torrent: %s", torrentName.c_str());
+    mvprintw((height / 4) + 5, (width - 40) / 2, "Speed: %.2f KB/s | Peers: %d | Progress: %.2f%%", speed, peers, progress);
+    if (completed) {
+        mvprintw(height - 1, 0, "Download completed!");
+    } else {
+        mvprintw(height - 1, 0, "Press ESC to exit");
+    }
+    refresh();
+}
+
+void runTorrentDownload(const std::string& input) {
+    auto session = std::make_shared<libtorrent::session>();
+    configureSession(session);
+    Torrent torrent(session, input);
+    curs_set(0);
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+    bool userExited = false;
+
+    while (!torrent.isCompleted()) {
+        torrent.handleAlerts();
+        auto [progress, peers, speed] = torrent.getTorrentStatus();
+        std::string torrentName = torrent.getTorrentName();
+        displayDownloadStatus(torrentName, progress, peers, speed , false);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        int ch = getch();
+        if (ch == 27) {
+            userExited = true;
+            break;
+        }
+    }
+
+    if (torrent.isCompleted()) {
+        displayDownloadStatus(torrent.getTorrentName(), 100.0f, 0, 0.0f, true);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    } else if (userExited) {
+        torrent.stopDownload();
+    }
+    curs_set(1);
+    endwin();
+}
+
+void fileSearcher(std::string pathname) {
+    FileSearcher fileSearcher(pathname);
+    fileSearcher.run();
+}
+
+void textEditor(std::string filename) {
+    initscr();
+    noecho();
+    cbreak();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    TextEditor editor(filename);
+    editor.runEditor();
+    endwin();
+}
+
+class Node {
+public:
     std::string name;
     bool isDirectory;
     std::vector<Node*> children;
 
-    Node(std::string n, bool isDir) : name(n), isDirectory(isDir) {}
+    Node(const std::string& name, bool isDir) : name(name), isDirectory(isDir) {}
 };
 
-// Function to add a new child (directory or file) to the specified parent node
-void addChild(Node* parent, const std::string& name, bool isDirectory) {
-    Node* child = new Node(name, isDirectory);
-    parent->children.push_back(child);
-    std::cout << (isDirectory ? "Directory " : "File ") << name << " added to " << parent->name << "\n";
-}
+class DirectoryTree {
+private:
+    Node* root;
+    std::string currentPath;
+    Node* currentNode;
 
-// Function to remove a child file from a specified parent directory
-bool removeChild(Node* parent, const std::string& name) {
-    for (auto it = parent->children.begin(); it != parent->children.end(); ++it) {
-        if ((*it)->name == name && !(*it)->isDirectory) {  // Only remove files
-            delete *it;  // Free the memory
-            parent->children.erase(it);
-            std::cout << "File " << name << " removed from " << parent->name << "\n";
-            return true;
+public:
+    DirectoryTree(const std::string& initialPath = ".") : root(new Node(".", true)) {
+        if (chdir(initialPath.c_str()) == 0) {
+            currentPath = getCurrentPath();
+        } else {
+            std::cerr << "Invalid path! Defaulting to the current directory." << std::endl;
+            currentPath = getCurrentPath();
         }
+        currentNode = root;
+        loadDirectory(root, currentPath);
     }
-    std::cout << "File " << name << " not found in " << parent->name << "\n";
-    return false;
-}
 
-// Recursive function to display the tree structure
-void displayStructure(Node* root, const std::string& prefix = "", bool isLast = true) {
-    std::cout << prefix << (isLast ? "└── " : "├── ") << (root->isDirectory ? "[DIR] " : "[FILE] ") << root->name << "\n";
-    std::string newPrefix = prefix + (isLast ? "    " : "│   ");
-    for (size_t i = 0; i < root->children.size(); i++) {
-        displayStructure(root->children[i], newPrefix, i == root->children.size() - 1);
+    std::string getCurrentPath() {
+        char buffer[PATH_MAX];
+        return getcwd(buffer, sizeof(buffer)) ? std::string(buffer) : ".";
     }
-}
 
-// Function to find a directory by name (returns nullptr if not found)
-Node* findDirectory(Node* root, const std::string& name) {
-    if (root->name == name && root->isDirectory) return root;
-    for (Node* child : root->children) {
-        if (child->isDirectory) {
-            Node* found = findDirectory(child, name);
-            if (found) return found;
+    void loadDirectory(Node* node, const std::string& path) {
+        node->children.clear();
+        node->children.push_back(new Node("..", true));
+
+        DIR* dir = opendir(path.c_str());
+        if (!dir) {
+            mvprintw(0, 0, "Failed to open directory: %s", path.c_str());
+            return;
         }
+
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string name = entry->d_name;
+            if (name == "." || name == ".." || name == ".versions" || name == "RESUME_DIR") continue;
+
+            bool isDir = (entry->d_type == DT_DIR);
+            node->children.push_back(new Node(name, isDir));
+        }
+        closedir(dir);
+
+        std::sort(node->children.begin(), node->children.end(), [](Node* a, Node* b) {
+            if (a->isDirectory && !b->isDirectory) return true;
+            if (!a->isDirectory && b->isDirectory) return false;
+            return a->name < b->name;
+        });
     }
-    return nullptr;
-}
 
-// Interactive menu to navigate and manipulate the directory structure
-void interactiveMenu(Node* root) {
-    int choice;
-    std::string parentName, itemName;
-
-    while (true) {
-        std::cout << "\nDirectory Management Menu:\n";
-        std::cout << "1. Display Directory Structure\n";
-        std::cout << "2. Add Directory\n";
-        std::cout << "3. Add File\n";
-        std::cout << "4. Remove File\n";
-        std::cout << "5. Exit\n";
-        std::cout << "Choose an option: ";
-        std::cin >> choice;
-
-        switch (choice) {
-            case 1:
-                std::cout << "\nCurrent Directory Structure:\n";
-                displayStructure(root);
-                break;
-
-            case 2:
-            case 3: {
-                std::cout << "Enter the name of the parent directory: ";
-                std::cin >> parentName;
-
-                Node* parent = findDirectory(root, parentName);
-                if (parent) {
-                    std::cout << "Enter " << (choice == 2 ? "directory" : "file") << " name: ";
-                    std::cin >> itemName;
-                    bool isDir = (choice == 2);
-                    addChild(parent, itemName, isDir);
-                } else {
-                    std::cout << "Parent directory not found.\n";
-                }
-                break;
+    void enterDirectory(const std::string& dirName) {
+        if (dirName == "..") {
+            if (currentNode != root) {
+                chdir("..");
+                currentPath = getCurrentPath();
+                loadDirectory(currentNode, currentPath);
             }
-
-            case 4: {
-                std::cout << "Enter the name of the parent directory: ";
-                std::cin >> parentName;
-
-                Node* parent = findDirectory(root, parentName);
-                if (parent) {
-                    std::cout << "Enter the name of the file to remove: ";
-                    std::cin >> itemName;
-                    removeChild(parent, itemName);
-                } else {
-                    std::cout << "Parent directory not found.\n";
+        } else {
+            std::string newPath = currentPath + "/" + dirName;
+            if (chdir(newPath.c_str()) == 0) {
+                for (Node* child : currentNode->children) {
+                    if (child->name == dirName && child->isDirectory) {
+                        currentNode = child;
+                        if (child->children.empty()) {
+                            loadDirectory(child, newPath);
+                        }
+                        break;
+                    }
                 }
-                break;
             }
-
-            case 5:
-                std::cout << "Exiting.\n";
-                return;
-
-            default:
-                std::cout << "Invalid choice. Please try again.\n";
+            currentPath = getCurrentPath();
         }
     }
-}
 
-int main() {
-    Node* root = new Node("root", true); // Initialize root directory
-    interactiveMenu(root); // Start interactive session
-    return 0;
-}
+    const std::vector<Node*>& getCurrentEntries() const {
+        return currentNode->children;
+    }
+
+    std::string getCurrentPathStr() const {
+        return currentPath;
+    }
+
+    void refresh() {
+        loadDirectory(currentNode, currentPath);
+    }
+};
+
+class FileExplorer {
+private:
+    DirectoryTree dirTree;
+    int selected = 0;  
+    int offset = 0;    
+
+public:
+    FileExplorer(const std::string& initialPath) : dirTree(initialPath) {
+        initscr();
+        keypad(stdscr, TRUE);
+        noecho();
+        curs_set(0);
+        displayEntries();
+    }
+
+    ~FileExplorer() {
+        endwin();
+    }
+
+    void displayEntries() {
+        clear();
+        int maxHeight, maxWidth;
+        getmaxyx(stdscr, maxHeight, maxWidth);
+        mvprintw(0, 0, ": %s", dirTree.getCurrentPathStr().c_str());
+        const auto& entries = dirTree.getCurrentEntries();
+        int visibleLines = std::min(maxHeight - 4, static_cast<int>(entries.size()));
+
+        for (int i = 0; i < visibleLines; ++i) {
+            int entryIndex = i + offset;
+            if (entryIndex >= entries.size()) break;
+            if (entryIndex == selected) attron(A_REVERSE);
+            mvprintw(i + 2, 0, "%s%s", entries[entryIndex]->name.c_str(), entries[entryIndex]->isDirectory ? "/" : "");
+            if (entryIndex == selected) attroff(A_REVERSE);
+        }
+        refresh();
+    }
+
+    void createFile() {
+        echo();
+        mvprintw(getmaxy(stdscr) - 1, 0, "Enter file name: ");
+        char filename[256];
+        getnstr(filename, sizeof(filename) - 1);
+        std::string baseFileName = filename;
+        std::string filePath = dirTree.getCurrentPathStr() + "/" + baseFileName;
+        size_t dotPos = baseFileName.find('.');
+        std::string newFileName = baseFileName;
+        int count = 1;
+        while (access(filePath.c_str(), F_OK) == 0) {
+            if (dotPos != std::string::npos) {
+                newFileName = baseFileName.substr(0, dotPos) + " (" + std::to_string(count) + ")" + baseFileName.substr(dotPos);
+            } else {
+                newFileName = baseFileName + " (" + std::to_string(count) + ")";
+            }
+            filePath = dirTree.getCurrentPathStr() + "/" + newFileName;
+            count++;
+        }
+        FILE* file = fopen(filePath.c_str(), "w");
+        move(getmaxy(stdscr) - 1, 0);
+        clrtoeol();
+        if (file) {
+            fclose(file);
+            mvprintw(getmaxy(stdscr) - 1, 0, "File '%s' created.", filePath.c_str());
+        } else {
+            mvprintw(getmaxy(stdscr) - 1, 0, "Failed to create file: %s", strerror(errno));
+        }
+        noecho();
+        dirTree.refresh();
+        refresh();
+        getch();
+    }
+
+    void createFolder() {
+        echo();
+        mvprintw(getmaxy(stdscr) - 1, 0, "Enter folder name: ");
+        char foldername[256];
+        getnstr(foldername, sizeof(foldername) - 1);
+        std::string baseFolderName = foldername;
+        std::string folderPath = dirTree.getCurrentPathStr() + "/" + baseFolderName;
+        int count = 1;
+        while (mkdir(folderPath.c_str(), 0755) != 0) {
+            folderPath = dirTree.getCurrentPathStr() + "/" + baseFolderName + " (" + std::to_string(count) + ")";
+            count++;
+        }
+        move(getmaxy(stdscr) - 1, 0);
+        clrtoeol();
+        mvprintw(getmaxy(stdscr) - 1, 0, "Folder '%s' created.", folderPath.c_str());
+        noecho();
+        dirTree.refresh();
+        refresh();
+        getch();
+    }
+
+    void run() {
+        int ch;
+        while ((ch = getch()) != 'q') {
+            int maxHeight, maxWidth;
+            getmaxyx(stdscr, maxHeight, maxWidth);
+
+            const auto& entries = dirTree.getCurrentEntries();
+            int totalEntries = entries.size();
+            int visibleLines = std::min(maxHeight - 4, totalEntries);
+
+            switch (ch) {
+                case KEY_UP:
+                    if (selected > 0) {
+                        --selected;
+                    } else if (offset > 0) {
+                        --offset;
+                    }
+                    break;
+
+                case KEY_DOWN:
+                    if (selected < totalEntries - 1) {
+                        ++selected;
+                    }
+                    if (selected >= visibleLines + offset - 1 && 
+                        offset < totalEntries - visibleLines) {
+                        ++offset;
+                    }
+                    break;
+
+                case '\n':
+                    if (entries[selected]->isDirectory) {
+                        dirTree.enterDirectory(entries[selected]->name);
+                        selected = 0;
+                        offset = 0;
+                    } else {
+                        std::string filePath = dirTree.getCurrentPathStr() + "/" + entries[selected]->name;
+                        if (filePath.substr(filePath.find_last_of(".") + 1) == "torrent") {
+                            runTorrentDownload(filePath);
+                        } else {
+                            textEditor(filePath);
+                        }
+                    }
+                    break;
+
+                case 14:
+                    createFile();
+                    break;
+
+                case 13:
+                    createFolder();
+                    break;
+
+                case 6:
+                    std::string path = dirTree.getCurrentPathStr();
+                    fileSearcher(path);
+                    break;
+            }
+            displayEntries();
+        }
+    }
+};
