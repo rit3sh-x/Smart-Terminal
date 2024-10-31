@@ -364,9 +364,11 @@ public:
                     }
 
                 case 19:{
-                    std::string filePath = dirTree.getCurrentPathStr() + "/" + entries[selected]->name;
-                    sendFile(filePath);
-                    break;
+                    if(!(entries[selected]->isDirectory)){
+                        std::string filePath = dirTree.getCurrentPathStr() + "/" + entries[selected]->name;
+                        sendFile(filePath);
+                        break;
+                        }
                     }
 
                 default:
