@@ -1,3 +1,6 @@
+#ifndef TEXT_EDITOR_HPP
+#define TEXT_EDITOR_HPP
+
 #include <fstream>
 #include <ncurses.h>
 #include <vector>
@@ -341,3 +344,4 @@ private:
         }
     }
 };
+#endif

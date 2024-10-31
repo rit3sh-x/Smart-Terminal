@@ -1,3 +1,6 @@
+#ifndef FILE_SEARCHER_HPP
+#define FILE_SEARCHER_HPP
+
 #include <ncurses.h>
 #include <filesystem>
 #include <vector>
@@ -168,3 +171,4 @@ private:
         endwin();
     }
 };
+#endif

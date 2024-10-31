@@ -1,3 +1,6 @@
+#ifndef FILE_DIRECTORY_STRUCTURE_HPP
+#define FILE_DIRECTORY_STRUCTURE_HPP
+
 #include <iostream>
 #include <ncurses.h>
 #include <dirent.h>
@@ -12,6 +15,32 @@
 #include "TextEditor.hpp"
 #include "FileSearcher.hpp"
 #include "Torrent.hpp"
+#include "FileSharingServer.hpp"
+#include "FileSharingClient.hpp"
+
+void receiveFile(std::string path) {
+    ServerUI UI;
+    std::string localIP = NetworkUtils::getLocalIP();
+    std::string encodedIP = Base64Encoder::encodeIP(localIP);
+    std::string filename = UI.getFilename();
+    UI.displaySessionID(encodedIP);
+    Server server(8080);
+    server.acceptConnection();
+    server.receiveFile(path + "/" + filename);
+    UI.showCompletionMessage();
+    UI.waitForExit();
+}
+
+void sendFile(std::string filename) {
+    ClientUI UI;
+    std::string encodedIP = UI.getSessionID();
+    std::string decodedIP = Base64Decoder::decodeIP(encodedIP);
+    FileTransferClient client(decodedIP, 8080, filename);
+    client.connectToServer();
+    client.sendFile();
+    UI.showMessage("Transfer Complete!");
+    UI.waitForExit();
+}
 
 void displayDownloadStatus(const std::string& torrentName, float progress, int peers, float speed, bool completed) {
     clear();
@@ -312,20 +341,39 @@ public:
                     }
                     break;
 
-                case 14:
+                case 14:{
                     createFile();
                     break;
+                    }
 
-                case 13:
+                case 13:{
                     createFolder();
                     break;
+                    }
 
-                case 6:
+                case 6:{
                     std::string path = dirTree.getCurrentPathStr();
                     fileSearcher(path);
+                    break;
+                    }
+
+                case 18:{
+                    std::string path = dirTree.getCurrentPathStr();
+                    receiveFile(path);
+                    break;
+                    }
+
+                case 19:{
+                    std::string filePath = dirTree.getCurrentPathStr() + "/" + entries[selected]->name;
+                    sendFile(filePath);
+                    break;
+                    }
+
+                default:
                     break;
             }
             displayEntries();
         }
     }
 };
+#endif

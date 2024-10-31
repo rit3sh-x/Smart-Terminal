@@ -1,3 +1,6 @@
+#ifndef VERSION_MANAGER_HPP
+#define VERSION_MANAGER_HPP
+
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -93,3 +96,4 @@ public:
         }
     }
 };
+#endif

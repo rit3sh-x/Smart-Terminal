@@ -42,9 +42,10 @@ class Torrent {
     std::tuple<float, int, float> getTorrentStatus();
     void handleAlerts();
     void stopDownload();
+    std::string getTorrentName() const;
 
     private:
-    std::mutex statusMutex;
+    mutable std::mutex statusMutex;
     std::shared_ptr<libtorrent::session> session;
     libtorrent::torrent_handle handle;
     float progress = 0.0f;
@@ -114,6 +115,14 @@ void Torrent::loadResumeData(const std::string& torrentFile) {
             handle = session->add_torrent(std::move(optionalParams));
         }
     }
+}
+
+std::string Torrent:: getTorrentName() const{
+    std::lock_guard<std::mutex> lock(statusMutex);
+    if (handle.is_valid() && handle.torrent_file()) {
+        return handle.torrent_file()->name();
+    }
+    return "Unknown";
 }
 
 void Torrent::handleAlerts() {
