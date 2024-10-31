@@ -44,3 +44,37 @@ For Compiling...
 ```sh
 g++ -o main main.cpp -lncurses -lboost_system -lboost_filesystem -ltorrent-rasterbar -pthread -lssl -lcrypto --std=c++17
 ```
+
+## Commands
+
+These are commands for the Program...
+- File Explorer
+```sh
+Enter - Enters Directories / Edit Files / Start Torrent Download
+q - Quit
+```
+
+- Text Editor
+```sh
+i - Insert Mode
+esc - Command Mode
+!q - Quit Without Saving
+!wq - Quit With Saving (Saving Create version Copy)
+Ctrl+H - See Version History
+```
+- Torrent Downloading
+```sh
+Enter - Entering on .torrent file start download
+esc - Exit with Pause
+```
+- File Sharing
+```sh
+Ctrl+S - Send selected file
+Ctrl+R - Receive in Current directory
+```
+> Use session ID given by receiver to establish connection. Make sure theres no firewall and both Sender and Receiver are connected to same Network.
+
+- File Searching
+```sh
+Ctrl+F - Search for files in Current directory
+```

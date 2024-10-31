@@ -10,11 +10,66 @@
 #include <iostream>
 #include <algorithm>
 #include <cctype>
+#include <unordered_map>
+
+class TrieNode {
+public:
+    std::unordered_map<char, TrieNode*> children;
+    std::vector<std::string> filePaths;
+
+    ~TrieNode() {
+        for (auto& pair : children) {
+            delete pair.second;
+        }
+    }
+};
+
+class Trie {
+public:
+    Trie() : root(new TrieNode()) {}
+
+    ~Trie() {
+        delete root;
+    }
+
+    void insert(const std::string& filePath) {
+        TrieNode* node = root;
+        std::string filename = std::filesystem::path(filePath).filename().string();
+        
+        for (char ch : filename) {
+            if (node->children.find(ch) == node->children.end()) {
+                node->children[ch] = new TrieNode();
+            }
+            node = node->children[ch];
+            node->filePaths.push_back(filePath);
+        }
+    }
+
+    std::vector<std::string> search(const std::string& prefix) {
+        TrieNode* node = root;
+        for (char ch : prefix) {
+            if (node->children.find(ch) == node->children.end()) {
+                return {};
+            }
+            node = node->children[ch];
+        }
+        return node->filePaths;
+    }
+
+private:
+    TrieNode* root;
+};
 
 class FileSearcher {
 public:
     FileSearcher(const std::string& path) : searchPath(path) {
         results.reserve(100);
+        trie = new Trie();
+        buildTrie();
+    }
+
+    ~FileSearcher() {
+        delete trie;
     }
 
     void run() {
@@ -26,6 +81,7 @@ private:
     std::vector<std::string> results;
     std::vector<std::string> suggestions;
     std::string searchPath;
+    Trie* trie;
 
     void clearFromRow(int startRow) {
         for (int row = startRow; row < LINES; ++row) {
@@ -36,19 +92,16 @@ private:
 
     std::string toLower(const std::string& str) {
         std::string lowerStr = str;
-        std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(),[](unsigned char c) { return std::tolower(c); });
+        std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
         return lowerStr;
     }
 
-    void searchInDirectory(const std::string& searchWord) {
-        std::string lowerSearchWord = toLower(searchWord);
+    void buildTrie() {
         try {
             for (const auto& entry : std::filesystem::recursive_directory_iterator(searchPath)) {
-                std::string name = entry.path().filename().string();
-                if (toLower(name).find(lowerSearchWord) != std::string::npos) {
-                    std::lock_guard<std::mutex> lock(mtx);
-                    results.push_back(entry.path().string());
-                }
+                std::string path = entry.path().string();
+                trie->insert(path);
             }
         } catch (const std::filesystem::filesystem_error& e) {
             std::lock_guard<std::mutex> lock(mtx);
@@ -60,17 +113,10 @@ private:
         suggestions.clear();
         if (input.empty()) return;
 
-        std::string lowerInput = toLower(input);
-
-        try {
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(searchPath)) {
-                std::string name = entry.path().filename().string();
-                if (toLower(name).find(lowerInput) == 0) {
-                    suggestions.push_back(name);
-                    if (suggestions.size() >= 10) break;
-                }
-            }
-        } catch (...) {
+        std::vector<std::string> matchedPaths = trie->search(toLower(input));
+        for (const auto& path : matchedPaths) {
+            suggestions.push_back(std::filesystem::path(path).filename().string());
+            if (suggestions.size() >= 10) break;
         }
     }
 
@@ -123,10 +169,7 @@ private:
                 results.clear();
                 mvprintw(4, 0, "Searching for \"%s\" in \"%s\"...", searchWord.c_str(), searchPath.c_str());
                 refresh();
-
-                std::thread search_thread(&FileSearcher::searchInDirectory, this, searchWord);
-                search_thread.join();
-
+                results = trie->search(searchWord);
                 clearFromRow(4);
                 int line = 4;
                 if (results.empty()) {
