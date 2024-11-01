@@ -2,10 +2,11 @@
 ## _A multi functional File Explorer_
 
 
-✨It is a UNIX  / LINUX ased, File Explorer.✨
+✨It is a UNIX  / LINUX based, File Explorer, made on WSL2.✨
 
-## Features
 
+## Summary & Features
+We aimed to make a File Explorer which is capable of Normal file handling with more integrated features here is a short description of what we have tried to implement.
 - Basic File Explorer features like, Creating files and Folders.
 - Text Editor, with basic features.
 - Torrent Downloader.
@@ -18,7 +19,6 @@
 > There may be errors in this Repository,
 > thank you for trying this repository.
 
-
 ## Tech
 
 Our Project uses a number of external C++ Libraries to work properly:
@@ -26,6 +26,7 @@ Our Project uses a number of external C++ Libraries to work properly:
 - Ncurses - UI Library for C++.
 - LibTorrent - Torrent features implementation.
 - OpenSSL - Hashing and Encryption purposes.
+- LibBoost - Dependency for OpenSSL and LibTorrent.
 
 
 ## Installation
@@ -36,13 +37,14 @@ Install the dependencies and compile.
 
 ```sh
 sudo apt update
-sudo apt install libssl-dev libtorrent-dev libncurses5-dev libncursesw5-dev
+sudo apt install libssl-dev libtorrent-dev libncurses5-dev libncursesw5-dev libboost-all-dev libtorrent-rasterbar-dev
 ```
 
 For Compiling...
 
 ```sh
-g++ -o main main.cpp -lncurses -lboost_system -lboost_filesystem -ltorrent-rasterbar -pthread -lssl -lcrypto --std=c++17
+g++ -o SmartTerminal main.cpp -lncurses -lboost_system -lboost_filesystem -ltorrent-rasterbar -pthread -lssl -lcrypto --std=c++17
+./SmartTerminal
 ```
 
 ## Commands
@@ -78,3 +80,5 @@ Ctrl+R - Receive in Current directory
 ```sh
 Ctrl+F - Search for files in Current directory
 ```
+
+> You can use TAB for suggested autocomplete at the top.

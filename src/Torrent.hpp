@@ -43,6 +43,7 @@ class Torrent {
     void handleAlerts();
     void stopDownload();
     std::string getTorrentName() const;
+    bool verifyTorrent(const std::string& input);
 
     private:
     mutable std::mutex statusMutex;
@@ -72,6 +73,25 @@ Torrent::Torrent(std::shared_ptr<libtorrent::session> session, const std::string
     } catch (const std::exception& e) {
         errorMessage = e.what();
     }
+}
+
+bool Torrent::verifyTorrent(const std::string& input) {
+    if (std::filesystem::exists(input)) {
+        try {
+            libtorrent::torrent_info ti(input);
+        } catch (const std::exception& e) {
+            return false;
+        }
+        return true;
+    } else if (input.find("magnet:") == 0) {
+        libtorrent::error_code ec;
+        libtorrent::parse_magnet_uri(input, ec);
+        if (ec) {
+            return false;
+        }
+        return true;
+    }
+    return false;
 }
 
 Torrent::~Torrent() {

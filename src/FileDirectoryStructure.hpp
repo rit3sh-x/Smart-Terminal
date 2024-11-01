@@ -67,22 +67,35 @@ void runTorrentDownload(const std::string& input) {
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
-    bool userExited = false;
+    nodelay(stdscr, FALSE);
 
+    if (!torrent.verifyTorrent(input)) {
+        clear();
+        int height, width;
+        getmaxyx(stdscr, height, width);
+        mvprintw((height / 2), (width - 22) / 2, "Invalid torrent file.");
+        mvprintw((height / 2) + 1, (width - 22) / 2, "Press any key to exit.");
+        refresh();
+        getch();
+        endwin();
+        return;
+    }
+
+    bool userExited = false;
     while (!torrent.isCompleted()) {
         torrent.handleAlerts();
         auto [progress, peers, speed] = torrent.getTorrentStatus();
         std::string torrentName = torrent.getTorrentName();
-        displayDownloadStatus(torrentName, progress, peers, speed , false);
+        
+        displayDownloadStatus(torrentName, progress, peers, speed, false);
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        
         int ch = getch();
         if (ch == 27) {
             userExited = true;
             break;
         }
     }
-
     if (torrent.isCompleted()) {
         displayDownloadStatus(torrent.getTorrentName(), 100.0f, 0, 0.0f, true);
         std::this_thread::sleep_for(std::chrono::seconds(1));
