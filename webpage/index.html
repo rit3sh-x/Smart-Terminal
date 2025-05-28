@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Terminal Project Report</title>
+    <link rel="stylesheet" href="https://latex.vercel.app/style.min.css" />
+    <link rel="stylesheet" href="https://latex.vercel.app/prism/prism.css">
+    <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.min.js"></script>
+</head>
+
+<body class="text-justify latex-auto">
+    <header>
+        <h1>Smart Terminal</h1>
+        <p class="author">
+            Ruhaan Choudhary<br>
+            Ritesh Kumar <br>
+            Manish Kumar <br>
+            Dr. Anil Shukla<br>
+            Sravanthi Chede
+        </p>
+    </header>
+
+    <div class="abstract">
+        <h2>Abstract</h2>
+        <p>
+            Smart Terminal is a UNIX/Linux-based file explorer, designed for efficient file management, navigation, and peer-to-peer file sharing. This project enhances user experience through organized navigation and seamless real-time file editing.
+        </p>
+    </div>
+
+    <nav role="navigation" class="toc">
+        <h2>Contents</h2>
+        <ol>
+            <li><a href="#introduction">Introduction</a></li>
+            <li><a href="#features">Features</a>
+                <ol>
+                    <li><a href="#file-organization-and-navigation">File Organization and Navigation</a></li>
+                    <li><a href="#file-searching-autocomplete">File Searching &amp; Autocomplete</a></li>
+                    <li><a href="#file-sharing">File Sharing (P2P/Torrent)</a></li>
+                    <li><a href="#file-editing">File Editing (Real-time)</a></li>
+                </ol>
+            </li>
+            <li><a href="#algorithms">Algorithms Implemented</a></li>
+            <li><a href="#conclusion">Conclusion</a></li>
+            <li><a href="#future">Future Developments</a></li>
+            <li><a href="#bibliography">Bibliography and Citations</a></li>
+            <li><a href="#appendix">Appendix</a></li>
+        </ol>
+    </nav>
+
+    <main>
+        <article>
+            <h2 id="introduction">Introduction</h2>
+            <p>
+                The <b>Smart Terminal</b> project is a UNIX/Linux-based file explorer designed to provide a comprehensive file organization, navigation, and editing experience directly within the terminal. Developed in C++ and enhanced with the <code>ncurses</code> library for an interactive text-based interface, Smart Terminal enables efficient file and folder management through intuitive commands. Key features include file creation, folder creation, advanced search capabilities, and real-time editing.
+            </p>
+            <p>
+                An innovative aspect of Smart Terminal is its incorporation of <b>Peer-to-Peer (P2P)</b> file sharing using torrent and socket protocols, allowing seamless file transfers between networked devices. Additionally, Smart Terminal includes a powerful version control system, supported by <code>OpenSSL</code> and custom <code>VersionManager</code> functionality, which tracks file changes over time and enables restoration to previous versions based on SHA1 hashing and timestamped versions.
+            </p>
+            <p>
+                Internally, the file structure is represented as an <b>n-ary tree</b> for directory navigation, <b>tries</b> for file searching and autocompletion, and <b>linked lists</b> for efficient data handling. This integrated structure ensures a robust and efficient performance, making Smart Terminal an ideal solution for users who require an all-in-one terminal-based file management tool.
+            </p>
+
+            <h2 id="features">Features</h2>
+
+            <h3 id="file-organization-and-navigation">File Organization and Navigation</h3>
+            <p>
+                The <b>Smart Terminal</b> application utilizes an N-ary tree structure to model a directory hierarchy, enabling efficient traversal, file operations, and user interaction. The file organization and navigation component offers the following core features:
+            </p>
+            <ul>
+                <li><b>File and Folder Creation:</b> Users can create new files and folders within the directory tree. The system ensures unique names for each entity by checking existing entries and adding suffixes if necessary.</li>
+                <li><b>Directory Navigation:</b> Implemented with <code>ncurses</code>, the terminal-based interface allows users to browse files and folders. Arrow keys facilitate movement through directory entries, allowing users to open subdirectories or return to parent directories.</li>
+                <li><b>File Searching:</b> An inbuilt search function enables users to quickly locate files within the current directory using keyword-based search.</li>
+                <li><b>Dynamic Directory Loading and Refreshing:</b> The directory tree is dynamically updated as users create or delete files, ensuring that displayed entries accurately reflect the current state of the file system.</li>
+            </ul>
+            <p>
+                Each of these functionalities is managed within the <code>DirectoryTree</code> and <code>FileExplorer</code> classes, which handle directory state, user interaction, and screen display.
+            </p>
+            <figure>
+                <img src="FileManagement.png" alt="File Organization and Navigation" style="width:90%;">
+                <figcaption>File Organization and Navigation</figcaption>
+            </figure>
+
+            <h3 id="file-searching-autocomplete">File Searching &amp; Autocomplete</h3>
+            <p>
+                The <b>FileSearcher</b> class in <b>Smart Terminal</b> provides efficient file searching and autocomplete functionality using a Trie-based approach for indexing file paths. This feature allows users to quickly locate files and directories by entering partial names and obtaining relevant suggestions. Key components of this system include:
+            </p>
+            <ul>
+                <li><b>Trie Data Structure:</b> The <code>Trie</code> and <code>TrieNode</code> classes are implemented to store file paths. Each character of a filename is represented as a node in the Trie, with complete paths stored at the end nodes. This enables fast prefix-based searches for autocompletion.</li>
+                <li><b>File Insertion in Trie:</b> Upon initialization, the <code>buildTrie()</code> method recursively scans the specified directory and inserts file paths into the Trie. This process allows for efficient querying of paths based on user input.</li>
+                <li><b>Autocomplete Suggestions:</b> As the user types in the search bar, <code>generateSuggestions()</code> queries the Trie for paths matching the current input prefix, displaying up to ten suggestions below the search bar.</li>
+                <li><b>Search Execution and Result Display:</b> Upon pressing Enter, the program searches for files matching the input and displays the results in a scrollable format, allowing navigation using the arrow keys.</li>
+            </ul>
+            <figure>
+              <img src="FileSearching.png" alt="File Searching" style="width:90%;">
+              <figcaption>File Searching</figcaption>
+            </figure>
+
+            <h3 id="file-sharing">File Sharing (P2P/Torrent)</h3>
+            <p>
+                The <b>FileTransferClient</b> class within the <b>Smart Terminal</b> project is designed to enable peer-to-peer file sharing through sockets, incorporating features for IP decoding and file transfer via TCP. This class, along with a Base64 decoder for IP addresses and a simple UI, allows seamless file transfers between client and server. Key components are outlined as follows:
+            </p>
+            <ul>
+                <li><b>Base64 Decoding for IP Addresses:</b> The <code>Base64Decoder</code> class converts encoded IP addresses from Base64 into the standard dotted-decimal format using a custom <code>decodeIP()</code> function. This enables obfuscated IPs to be decoded for secure communication within the client-server architecture.</li>
+                <li><b>File Transfer Client:</b> The <code>FileTransferClient</code> class establishes a TCP connection to a server and transfers a specified file in binary mode. This is achieved by reading chunks of data and sending them over the socket, ensuring reliability in the file transmission process.</li>
+                <li><b>Client User Interface (UI):</b> The <code>ClientUI</code> class, implemented with <code>ncurses</code>, provides a text-based interface where users can input the session ID for the file transfer and receive status messages. It manages screen interactions and displays messages, improving usability for end-users in the terminal environment.</li>
+            </ul>
+            <figure>
+              <img src="flowchart.png" alt="File Sharing Mechanism Flowchart" style="width:90%;">
+              <figcaption>File Sharing Mechanism Flowchart</figcaption>
+            </figure>
+            <figure>
+              <img src="Torrent.png" alt="File Sharing" style="width:90%;">
+              <figcaption>File Sharing</figcaption>
+            </figure>
+
+            <h3 id="file-editing">File Editing (Real-time)</h3>
+            <h4>File Editing and Version Control in Real-Time</h4>
+            <p>
+                The file editing and version control system in <b>Smart Terminal</b> provides a seamless and interactive experience for managing files, editing content, and tracking changes. This component leverages the <code>ncurses</code> library to create a text editor with intuitive navigation, command, and insert modes, as well as real-time version tracking through a custom <code>VersionManager</code> class.
+            </p>
+            <h4>Text Editor</h4>
+            <ul>
+                <li><b>File Loading and Saving:</b> Automatically loads content from a specified file and enables saving to the same file upon command.</li>
+                <li><b>Cursor and Line Navigation:</b> Provides cursor-based navigation using arrow keys and efficient line-by-line scrolling.</li>
+                <li><b>Command Processing:</b> Supports commands such as <code>!wq</code> for saving and quitting, and <code>!q</code> for quitting without saving.</li>
+                <li><b>Dynamic Display and Status Bar:</b> Displays file content dynamically and shows the current mode, unsaved changes, and active commands.</li>
+            </ul>
+            <h4>Version Control with <code>VersionManager</code></h4>
+            <ul>
+                <li><b>File Hashing and Timestamps:</b> Uses SHA1 hashes and timestamps to generate unique identifiers for each file version, stored in a dedicated <code>.versions</code> directory.</li>
+                <li><b>Saving and Restoring Versions:</b> Upon saving, the current file state is stored as a new version. The system allows for restoring previous versions, enabling users to revert changes if needed.</li>
+                <li><b>Version Menu for Retrieval:</b> Displays a list of saved versions in reverse chronological order. Users can select a version to restore, allowing for flexible change tracking and rollback.</li>
+                <li><b>HEAD Tracking:</b> Maintains a <code>HEAD</code> file, ensuring that the latest version is always accessible.</li>
+            </ul>
+            <h4>File System Integration</h4>
+            <p>
+                The <b>Smart Terminal</b> version control integrates seamlessly with the file system by creating versioned directories and ensuring efficient and reliable file operations. It leverages the <code>std::filesystem</code> library, making the system robust and compatible with typical UNIX-based file structures. Together with the real-time editing capabilities provided by the text editor, this integration enables a powerful and efficient file management experience.
+            </p>
+            <figure>
+              <img src="TextEditor.png" alt="Text Editor" style="width:90%;">
+              <figcaption>Text Editor</figcaption>
+            </figure>
+
+            <h2 id="algorithms">Algorithms Implemented</h2>
+            <h3>File Searching</h3>
+            <pre><code class="language-none">
+Algorithm: File Searching
+
+1. Initialize an empty Trie structure.
+2. Set the directory searchPath as the root for file searching.
+3. Populate the Trie:
+    - For each file in the directory and its subdirectories:
+        - Extract the file name and insert it into the Trie.
+        - Add the full path to the file's location in the Trie node.
+
+4. function searchUI():
+    a. Initialize the terminal screen using ncurses settings.
+    b. Set up an interactive search window.
+    c. while the user has not exited the program:
+        i. Display the input prompt and capture the user's input (searchWord).
+        ii. Generate Suggestions:
+            - Retrieve suggestions from the Trie based on searchWord as prefix.
+            - Display up to 10 suggestions in the terminal.
+        iii. Handle User Input:
+            - Update searchWord on character input or deletion.
+            - If Tab key is pressed, auto-complete searchWord to the first suggestion.
+            - If Enter key is pressed:
+                - Clear previous results and display search status.
+                - Retrieve file paths from the Trie matching searchWord.
+                - Display file paths line-by-line in the terminal.
+        iv. Handle Scrolling and Exiting:
+            - Allow scrolling through results using Arrow keys.
+            - Exit the search on Esc key press.
+
+5. End the program and clean up terminal settings.
+            </code></pre>
+
+            <h3>File Directory Structure Using N-ary Trees</h3>
+            <pre><code class="language-none">
+Algorithm: File Directory Structure Using N-ary Trees
+
+1. Initialize a DirectoryTree object with a specified path or default to the current directory.
+2. Set the root node as the initial path.
+3. Define loadDirectory to load directories into the n-ary tree.
+
+Procedure loadDirectory(Node, Path)
+    - Clear all children of the current Node.
+    - Set the parent directory as a child node with name "..".
+    - Open the directory at the specified Path.
+    - For each entry in the directory:
+        - If entry is a valid file or folder:
+            - Add it as a child node of the current Node.
+    - Sort child nodes by type (directories first, then files).
+    - Close the directory.
+
+Define enterDirectory to navigate to a specified directory in the tree.
+
+Procedure enterDirectory(DirectoryName)
+    - If DirectoryName is "..", navigate up the tree.
+    - Else, find the child node with matching DirectoryName.
+        - If found, navigate into it and reload directory contents.
+
+Define displayEntries to display the current directory entries in a file explorer view.
+
+Procedure displayEntries
+    - Clear the display window.
+    - Display the current path.
+    - For each entry in the current directory:
+        - Display the entry's name, highlighting the selected entry.
+    - Refresh the display.
+
+Define createFile and createFolder for adding new files or folders.
+
+Define runTorrentDownload, textEditor, fileSearcher, sendFile, and receiveFile to manage file transfers and editing.
+
+Implement navigation controls for the file explorer:
+    - Arrow keys for scrolling through entries.
+    - Enter key to open a directory or file.
+    - Other keys for creating files, folders, and transferring files.
+            </code></pre>
+
+            <h2 id="conclusion">Conclusion</h2>
+            <p>
+                The <b>Smart Terminal</b> project represents a comprehensive and efficient file management solution tailored for UNIX/Linux-based systems. By combining intuitive file navigation, real-time editing, and robust file-sharing capabilities within a terminal interface, it enables users to streamline file operations with ease and flexibility. The project successfully integrates multiple data structures such as tries, n-ary trees, and achieving fast file searching, structured directory navigation, and efficient data handling. Through the use of external libraries like Ncurses, LibTorrent, and OpenSSL, it also provides secure and seamless peer-to-peer file transfer functionalities. Overall, <b>Smart Terminal</b> bridges simplicity and advanced functionality, making it a versatile tool for file management.
+            </p>
+
+            <h2 id="future">Future Developments</h2>
+            <ul>
+                <li><b>Graphical Interface:</b> Developing an optional graphical version would cater to users preferring a GUI while preserving the efficiency and features of the terminal version.</li>
+                <li><b>Enhanced Version Control:</b> Expanding the version control system to support multi-user collaborative editing, conflict resolution, and a more sophisticated differential storage algorithm.</li>
+                <li><b>Extended File Sharing Protocols:</b> Incorporating more file-sharing protocols (e.g., FTP, SFTP) and enhancing DHT-based file distribution to support larger networks.</li>
+                <li><b>Improved Search Algorithms:</b> Incorporating additional search algorithms to further optimize file searching speeds, especially in larger directories.</li>
+            </ul>
+
+            <h2 id="bibliography">Bibliography and Citations</h2>
+            <ul>
+                <li>W. Richard Stevens. <i>UNIX Network Programming: Networking APIs: Sockets and XTI</i>. Prentice Hall PTR, 1998. <br>
+                    <span class="no-indent">Provides a comprehensive explanation of socket programming, essential for implementing peer-to-peer file sharing in the Smart Terminal project.</span>
+                </li>
+                <li>Donald Knuth. <i>The Art of Computer Programming, Volume 3: Sorting and Searching</i>. Addison-Wesley, 1998. <br>
+                    <span class="no-indent">Includes a thorough discussion of the Trie data structure, used in Smart Terminal for efficient file searching and autocomplete.</span>
+                </li>
+                <li>Eric S. Raymond and Thomas E. Dickey. <i>Programming with NCURSES</i>. John Wiley &amp; Sons, 1997. <br>
+                    <span class="no-indent">Covers Ncurses functions extensively, crucial for building the Smart Terminal's interactive terminal UI.</span>
+                </li>
+                <li>National Institute of Standards and Technology (NIST). <i>Secure Hash Standard (SHS)</i>. Federal Information Processing Standards Publication, FIPS PUB 180-1, April 1995. <a href="https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-1.pdf" target="_blank">[PDF]</a><br>
+                    <span class="no-indent">The Secure Hash Standard (SHS) specifies secure hash algorithms approved for computing a condensed representation of electronic data, including SHA-1 for cryptographic security.</span>
+                </li>
+            </ul>
+
+            <h2 id="appendix">Appendix</h2>
+            <h3>SHA1 Algorithm</h3>
+            <pre><code class="language-none">
+Algorithm: SHA-1 Algorithm Pseudocode
+
+Input: Message M of length L bits
+Output: 160-bit hash H
+
+Step 1: Pre-processing
+    - Append the bit '1' to the end of M
+    - Append k zero bits, where k is the smallest integer such that (L + 1 + k) mod 512 = 448
+    - Append the 64-bit binary representation of L to M
+    - Split M into N 512-bit blocks: M = M1, M2, ..., MN
+
+Step 2: Initialize hash values
+    Set initial hash values:
+        H0 = 0x67452301
+        H1 = 0xEFCDAB89
+        H2 = 0x98BADCFE
+        H3 = 0x10325476
+        H4 = 0xC3D2E1F0
+
+Step 3: Process each 512-bit block
+    For each 512-bit block Mi:
+        - Divide Mi into 16 words W[0], W[1], ..., W[15] of 32 bits each
+        - For t = 16 to 79:
+            W[t] = leftrotate(W[t-3] xor W[t-8] xor W[t-14] xor W[t-16], 1)
+        - Initialize variables A, B, C, D, E with H0, H1, H2, H3, H4
+
+        For t = 0 to 79:
+            if 0 ≤ t ≤ 19:   f = (B and C) or (not B and D), k = 0x5A827999
+            if 20 ≤ t ≤ 39:  f = B xor C xor D, k = 0x6ED9EBA1
+            if 40 ≤ t ≤ 59:  f = (B and C) or (B and D) or (C and D), k = 0x8F1BBCDC
+            if 60 ≤ t ≤ 79:  f = B xor C xor D, k = 0xCA62C1D6
+            TEMP = leftrotate(A, 5) + f + E + k + W[t]
+            E = D, D = C, C = leftrotate(B, 30), B = A, A = TEMP
+
+        - Update hash values:
+            H0 = H0 + A
+            H1 = H1 + B
+            H2 = H2 + C
+            H3 = H3 + D
+            H4 = H4 + E
+
+Step 4: Produce the final hash
+    Concatenate H0, H1, H2, H3, H4 to get the final 160-bit hash H
+            </code></pre>
+
+
+
+
+
+</html></body>    </main>        </article>        </article>
+    </main>
+</body>
+</html>
